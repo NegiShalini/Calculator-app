@@ -151,7 +151,7 @@ class CalculatorFragment : Fragment(), OnClickListener {
 
     /**display the result from result textview to input textview*/
     private fun onClickEqual() {
-
+        Log.d(TAG, "onClickEqual: ")
         val result = mFragmentBinding.resultTextview.text
         if (result == "ERROR") {
             return
