@@ -31,7 +31,3 @@ class MainActivity : AppCompatActivity() {
         private val TAG = MainActivity::class.java.simpleName
     }
 }
-
-//mFragmentBinding.inputTextview.text =  mFragmentBinding.inputTextview.text.substring(0,  mFragmentBinding.inputTextview.text.length - 1)
-//mFragmentBinding.inputTextview.append(operator)
-//mOperatorAdded = true
