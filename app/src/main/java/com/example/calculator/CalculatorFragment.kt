@@ -17,10 +17,8 @@ import net.objecthunter.exp4j.ExpressionBuilder
 
 class CalculatorFragment : Fragment(), OnClickListener {
     private lateinit var mFragmentBinding: CalculatorFragmentLayoutBinding
-
-    //    private var mDigitAdded = false
-//    private var mOperatorAdded = false
-//    private var mDecimalValue = false
+    private val mOperatorList = listOf("+", "-", "/", "*", "%")
+    private val mRegex = Regex(REGEX_DIVIDE_BY_ZERO)
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -37,7 +35,7 @@ class CalculatorFragment : Fragment(), OnClickListener {
         setTextViewListener()
         inputTextViewTextWatcher()
     }
-//
+
     /**setting onclickListener for all the views of the layout*/
     private fun setTextViewListener() {
         Log.d(TAG, "setTextViewListener() is called")
@@ -62,7 +60,6 @@ class CalculatorFragment : Fragment(), OnClickListener {
         mFragmentBinding.equal.setOnClickListener(this)
     }
 
-    /**call onclickNumber() and onClickOperator() to set the specified text to the textview of calculator on clicking on particular keys */
     override fun onClick(view: View?) {
         Log.i(TAG, "onClick() is called")
         when (view?.id) {
@@ -136,12 +133,11 @@ class CalculatorFragment : Fragment(), OnClickListener {
             }
             R.id.clear -> {
                 Log.d(TAG, " onClear() is called")
-                onClear()
+                onBackKey()
             }
             R.id.equal -> {
                 Log.d(TAG, " onDoubleClickEqual() is called")
-                if(mFragmentBinding.resultTextview.text.isBlank())
-                {
+                if (mFragmentBinding.resultTextview.text.isBlank()) {
                     return
                 }
                 onClickEqual()
@@ -149,157 +145,161 @@ class CalculatorFragment : Fragment(), OnClickListener {
         }
     }
 
-    /**display the result from result textview to input textview*/
+    /** set result to inputText and return if result shows error */
     private fun onClickEqual() {
-        Log.d(TAG, "onClickEqual: ")
+        Log.d(TAG, "onClickEqual() is called ")
         val result = mFragmentBinding.resultTextview.text
-        if (result == "ERROR") {
+        if (result == ERROR_MESSAGE) {
             return
         }
-        mFragmentBinding.inputTextview.text = result
+      addDataToInputTextview(result.toString())
     }
 
-    /**clear the text one by one on pressing back button*/
-    private fun onClear() {
+    /**calls onAllClear() if inputTextview is either blank or contains one character or clear the text one by one on pressing back button*/
+    private fun onBackKey() {
         Log.d(TAG, "onClear() is called")
         val inputData = mFragmentBinding.inputTextview.text
-        if(inputData.isBlank()|| inputData.length==1)
-        {
-
-            mFragmentBinding.resultTextview.text=""
-            mFragmentBinding.inputTextview.text=""
-            mFragmentBinding.textviewEqual.isVisible=false
+        if (inputData.isEmpty() || inputData.length == 1) {
+            onAllClear()
             return
         }
-        mFragmentBinding.inputTextview.text = inputData.dropLast(1)
+       addDataToInputTextview( inputData.dropLast(1).toString())
     }
-    /** add input to the input textview of calculator*/
+
+    /** set input to the inputTextview of calculator by applying certain constraints*/
     private fun addToInputField(input: String) {
         Log.d(TAG, "addToInputField() is called")
         val inputData = mFragmentBinding.inputTextview.text.toString()
-        val result= mFragmentBinding.resultTextview.text.toString()
-        if(inputData==result && input.isDigitsOnly())
-        {
-            mFragmentBinding.inputTextview.text=""
-            mFragmentBinding.resultTextview.text=""
-            mFragmentBinding.textviewEqual.isVisible=false
+        val result = mFragmentBinding.resultTextview.text.toString()
+        if (inputData == result && input.isDigitsOnly()) {
+            onAllClear()
         }
-        val regex = Regex("\\d+/0+")
-        if (inputData.contains(regex)) {
+        if (inputData.contains(mRegex)) {//return if inputData is divided by zero
+            Log.d(TAG, "input Textview contain  a expression having divide by zero")
             return
         }
-
         if (input.isDigitsOnly()) {
             Log.d(TAG, "input data is a number")
-            addNumber(input)
+            appendDataToTextview(input)
             return
         }
-        val operatorList = listOf("+", "-", "/", "*", "%")
-        if (operatorList.contains(input)) {
-            Log.d(TAG, "input data is a operator")
-            if (inputData.isEmpty() && input != "-") {
-                return
-            }
-            if (inputData.isEmpty() && input == "-") {
-                addOperator(input)
-                return
-            }
-            if (inputData == "-") {
-                return
-            }
-            val lastChar = inputData.takeLast(1)
-            Log.d(TAG, "last character : $lastChar")
-            if (lastChar == input) {
-                return
-            }
-
-            if (lastChar == ".") {
-                return
-            }
-            if (operatorList.contains(lastChar)) {
-                mFragmentBinding.inputTextview.text = inputData.dropLast(1)
-                mFragmentBinding.inputTextview.append(input)
-                return
-            }
-            addOperator(input)
+        if (mOperatorList.contains(input)) {
+            addOperatorToTextview(input, inputData)
             return
         }
-        if (input == ".") {
-
-            if (inputData.isEmpty()) {
-                mFragmentBinding.inputTextview.append("0.")
-                return
-            }
-            val lastChar = inputData.takeLast(1)
-            if (lastChar == ".") {
-                return
-            }
-            if (operatorList.contains(lastChar)) {
-                mFragmentBinding.inputTextview.append("0.")
-                return
-            }
-            val operatorIndex = isContainOperator(operatorList, inputData)
-            if (operatorIndex != -1) {
-                Log.d(TAG, " Operator index : $operatorIndex")
-                val lastIndex = inputData.length
-                Log.d(TAG, "last index of input textview : $lastIndex")
-                val subString = inputData.substring((lastIndex - operatorIndex), lastIndex)
-                Log.d(TAG, "substring : $subString")
-                if (subString.contains(".")) {
-                    return
-                }
-                mFragmentBinding.inputTextview.append(".")
-                return
-            }
-            if (inputData.contains(".")) {
-                return
-            }
-            mFragmentBinding.inputTextview.append(".")
+        if (input == DECIMAL_SIGN) {
+            addDecimalToTextview(input, inputData)
+            return
         }
+
     }
 
-    /**check if input textview contain operator or not and return the index of operator
+    /**set constraints for input textview when input data in decimal*/
+    private fun addDecimalToTextview(decimal: String, inputData: String) {
+        Log.d(TAG, "isDecimal() is called")
+        if (inputData.isEmpty()) {
+            concatenateDecimalZero()
+            return
+        }
+        val lastChar = inputData.takeLast(1)
+        if (lastChar == decimal) {
+            return
+        }
+        if (mOperatorList.contains(lastChar)) {
+            concatenateDecimalZero()
+            return
+        }
+        val operatorIndex = isContainOperator(mOperatorList, inputData)
+        if (operatorIndex != -1) {
+            if (inputData.substring((inputData.length - operatorIndex), inputData.length)
+                    .contains(decimal)
+            )
+                return
+            appendDataToTextview(decimal)
+            return
+        }
+        if (inputData.contains(decimal)) {
+            return
+        }
+        appendDataToTextview(decimal)
+    }
+
+    /**concatenate decimal with zero  */
+    private fun concatenateDecimalZero() {
+        Log.d(TAG, "concatenateZero() is called")
+        mFragmentBinding.inputTextview.append(DECIMAL_ZERO)
+    }
+
+    /** set data to input textview of calculator*/
+    private fun appendDataToTextview(data: String) {
+        Log.d(TAG, "appendData() is called ")
+        mFragmentBinding.inputTextview.append(data)
+    }
+
+    /**set constraints for inputTextview when inputData is a operator*/
+    private fun addOperatorToTextview(operator: String, inputData: String) {
+        Log.d(TAG, "isOperator() is called")
+        Log.d(TAG, "input data is a operator")
+        if (inputData.isEmpty() && operator != MINUS_SIGN) {
+            return
+        }
+        if (inputData.isEmpty() && operator == MINUS_SIGN) {
+            appendDataToTextview(operator)
+            return
+        }
+        if (inputData == MINUS_SIGN) {
+            return
+        }
+        val lastChar = inputData.takeLast(1)
+        if (lastChar == operator) {
+            return
+        }
+
+        if (lastChar == DECIMAL_SIGN) {
+            return
+        }
+        if (mOperatorList.contains(lastChar)) {
+            addDataToInputTextview(inputData.dropLast(1))
+            appendDataToTextview(operator)
+            return
+        }
+        appendDataToTextview(operator)
+    }
+
+
+    /**returns the index of last operator if present in inputTextview
      *
-     * prams: operatorList : list of string type containing all operators , inputData- String type containg value of input textview
+     * prams: operatorList-list of operator, inputData-data inputextview holds
      *
-     * return: index - integer type holding the index value of operator*/
+     * return: index*/
     private fun isContainOperator(operatorList: List<String>, inputData: String): Int {
         Log.d(TAG, "isContainOperator() is called")
         val reverseInputData = inputData.reversed()
-        Log.d(TAG, "input data after reversing the data is $reverseInputData")
         for (operator in operatorList) {
             if (reverseInputData.contains(operator)) {
-                Log.d(TAG, "$operator value of index is ${reverseInputData.indexOf(operator)}")
                 return reverseInputData.indexOf(operator)
             }
         }
         return -1
     }
 
-    /**add operator in the input textview*/
-    private fun addOperator(operator: String) {
-        Log.d(TAG, "addOperator() is called")
-        mFragmentBinding.inputTextview.append(operator)
-    }
-
-    /**add number in the input textview*/
-    private fun addNumber(number: String) {
-        Log.d(TAG, "addNumber() is called")
-        mFragmentBinding.inputTextview.append(number)
-    }
-
-    /**clear input data and result of the calculator also enable the disabled keys*/
+    /**clear all the data of calculator app */
     private fun onAllClear() {
         Log.d(TAG, "onAllClear() is called")
-        mFragmentBinding.inputTextview.text = ""
-        mFragmentBinding.resultTextview.text = ""
-        mFragmentBinding.textviewEqual.isVisible = false
+        addDataToInputTextview("")
+        addDataToResultTextview("")
+        mFragmentBinding.equalTextView.isVisible = false
 
     }
-/**evaluate the expression present in input textview*/
-    private fun evaluateResult() {
+/**display data in input textview*/
+    private fun addDataToInputTextview(data: String) {
+    Log.d(TAG, "addDataToInputTextview() is called")
+    mFragmentBinding.inputTextview.text = data
+    }
+
+    /**display result in resultTextview after evaluating expression*/
+    private fun displayResult(inputData: CharSequence) {
         Log.d(TAG, "evaluateResult() is called")
-        val inputData = mFragmentBinding.inputTextview.text.toString()
         if (inputData.isEmpty()) {
             return
         }
@@ -307,381 +307,69 @@ class CalculatorFragment : Fragment(), OnClickListener {
             return
         }
         val lastChar = inputData.takeLast(1)
-        val operatorList = listOf("+", "-", "*", "/", "%")
-        if (isContainOperator(operatorList, inputData) == -1) {
+        if (isContainOperator(mOperatorList, inputData.toString()) == -1) {
             return
         }
-        if (operatorList.contains(lastChar)) {
+        if (mOperatorList.contains(lastChar)) {
             return
         }
-        if (lastChar == ".") {
+        if (lastChar == DECIMAL_SIGN) {
             return
         }
-        val regex = Regex("\\d+/0+")
-        if (inputData.contains(regex)) {
-            mFragmentBinding.resultTextview.text = getString(R.string.error_message)
+        if (inputData.contains(mRegex)) {
+            addDataToResultTextview(ERROR_MESSAGE)
             return
         }
-
         try {
-            Log.d(TAG, "value in inputTextview $inputData")
-            val expression = ExpressionBuilder(inputData).build()
-            Log.d(TAG, "value in expression $expression")
-            val result = expression.evaluate()
-            mFragmentBinding.resultTextview.text = result.toString()
-            mFragmentBinding.textviewEqual.isVisible = true
+            evaluateExpression(inputData)
         } catch (e: Exception) {
-            return
+            Log.d(TAG, "Exception is caught $e")
         }
     }
- //   /**setting onclickListener for all the views of the layout*/
-//    private fun setTextViewListener() {
-//        Log.d(TAG, "setTextViewListener() is called")
-//        mFragmentBinding.one.setOnClickListener(this)
-//        mFragmentBinding.two.setOnClickListener(this)
-//        mFragmentBinding.three.setOnClickListener(this)
-//        mFragmentBinding.four.setOnClickListener(this)
-//        mFragmentBinding.five.setOnClickListener(this)
-//        mFragmentBinding.six.setOnClickListener(this)
-//        mFragmentBinding.seven.setOnClickListener(this)
-//        mFragmentBinding.eight.setOnClickListener(this)
-//        mFragmentBinding.nine.setOnClickListener(this)
-//        mFragmentBinding.zero.setOnClickListener(this)
-//        mFragmentBinding.plus.setOnClickListener(this)
-//        mFragmentBinding.minus.setOnClickListener(this)
-//        mFragmentBinding.multiply.setOnClickListener(this)
-//        mFragmentBinding.divide.setOnClickListener(this)
-//        mFragmentBinding.modulas.setOnClickListener(this)
-//        mFragmentBinding.allClear.setOnClickListener(this)
-//        mFragmentBinding.clear.setOnClickListener(this)
-//        mFragmentBinding.decimal.setOnClickListener(this)
-//        mFragmentBinding.equal.setOnClickListener(this)
-//    }
-//
-//    /**call onclickNumber() and onClickOperator() to set the specified text to the textview of calculator on clicking on particular keys */
-//    override fun onClick(view: View?) {
-//        Log.i(TAG, "onClick() is called")
-//        when (view?.id) {
-//            R.id.one -> {
-//                Log.d(TAG, " 1 is pressed")
-//                enableKeys()
-//                onNumberInput("1")
-//            }
-//            R.id.two -> {
-//                Log.d(TAG, " 2 is pressed")
-//                enableKeys()
-//                onNumberInput("2")
-//            }
-//            R.id.three -> {
-//                Log.d(TAG, " 3 is pressed")
-//                enableKeys()
-//                onNumberInput("3")
-//            }
-//            R.id.four -> {
-//                Log.d(TAG, " 4 is pressed")
-//                enableKeys()
-//                onNumberInput("4")
-//            }
-//            R.id.five -> {
-//                Log.d(TAG, " 5 is pressed")
-//                enableKeys()
-//                onNumberInput("5")
-//            }
-//            R.id.six -> {
-//                Log.d(TAG, " 6 is pressed")
-//                enableKeys()
-//                onNumberInput("6")
-//            }
-//            R.id.seven -> {
-//                Log.d(TAG, " 7 is pressed")
-//                enableKeys()
-//                onNumberInput("7")
-//            }
-//            R.id.eight -> {
-//                Log.d(TAG, " 8 is pressed")
-//                enableKeys()
-//                onNumberInput("8")
-//            }
-//            R.id.nine -> {
-//                Log.d(TAG, " 9 is pressed")
-//                enableKeys()
-//                onNumberInput("9")
-//            }
-//            R.id.zero -> {
-//                Log.d(TAG, " 0 is pressed")
-//                enableKeys()
-//                onNumberInput("0")
-//            }
-//            R.id.plus -> {
-//                Log.d(TAG, " + is pressed")
-//                onclickOperator("+")
-//            }
-//            R.id.minus -> {
-//                Log.d(TAG, " - is pressed")
-//                if (mFragmentBinding.inputTextview.text.isEmpty()) {
-//                    mFragmentBinding.inputTextview.text = "-"
-//                } else
-//                    onclickOperator("-")
-//            }
-//            R.id.divide -> {
-//                Log.d(TAG, " / is pressed")
-//                onclickOperator("/")
-//            }
-//            R.id.multiply -> {
-//                Log.d(TAG, " * is pressed")
-//                onclickOperator("*")
-//            }
-//            R.id.modulas -> {
-//                Log.d(TAG, " % is pressed")
-//                onclickOperator("%")
-//            }
-//            R.id.decimal -> {
-//                Log.d(TAG, " . is pressed")
-//                // onclickOperator(".")
-//                onclickDecimalPoint(".")
-//            }
-//            R.id.allClear -> {
-//                Log.d(TAG, " onAllClear() is called")
-//                enableKeys()
-//                onAllClear()
-//            }
-//            R.id.clear -> {
-//                Log.d(TAG, " onClear() is called")
-//                enableKeys()
-//                onClear()
-//            }
-//            R.id.equal -> {
-//                Log.d(TAG, " onDoubleClickEqual() is called")
-//                onDoubleClickEqual()
-//            }
-//        }
-//    }
-//
-//    /** concatenate decimal point with zero if it is inserted alone without any digit or after an operator
-//     * also enable inserting only a single decimal point with one digit
-//     *
-//     * prams: decimal - string value storing decimal point*/
-//    private fun onclickDecimalPoint(decimal: String) {
-//        Log.d(TAG, "onClickDecimalPoint() is called")
-//        if (!mDigitAdded && !mDecimalValue || mOperatorAdded) {
-//            mFragmentBinding.inputTextview.append("0$decimal")
-//            mDecimalValue = true
-//            mOperatorAdded = false
-//            return
-//        }
-//        if (!mDecimalValue) {
-//            mFragmentBinding.inputTextview.append(decimal)
-//            mDecimalValue = true
-//        }
-//    }
-//
-//    /** setting operator to textview and return if a operator is already there or no digit is there in the input textview
-//     *also replace older operator with a new one if two operator are pressed simultaneously
-//     *
-//     * prams: operator - string value used to store operator like: +,-,*,/,% */
-//    private fun onclickOperator(operator: String) {
-//        Log.d(TAG, "onClickOperator() is called")
-//        if (!mDigitAdded && !mOperatorAdded) {
-//            Log.d(TAG, "statement one executed")
-//            return
-//        }
-//        if (mOperatorAdded) {
-//            Log.d(TAG, "if block two executed")
-//            mFragmentBinding.inputTextview.text = mFragmentBinding.inputTextview.text.substring(
-//                0,
-//                mFragmentBinding.inputTextview.text.length - 1
-//            )
-//            mFragmentBinding.inputTextview.append(operator)
-//            mOperatorAdded = true
-//            mDecimalValue = false
-//            return
-//        }
-//        Log.d(TAG, "block three executed")
-//        mFragmentBinding.inputTextview.append(operator)
-//        mOperatorAdded = true
-//        mDecimalValue = false
-//
-//    }
-//
-//    /** setting specified numbers to textview passed by clicking on particular keys of calculator
-//     *
-//     * prams:number- string value which store the number*/
-//    private fun onNumberInput(number: String) {
-//        Log.d(TAG, "onClickNumber() is called$number")
-////        mFragmentBinding.inputTextview.append(number)
-////        mDigitAdded = true
-////        mOperatorAdded = false
-//    }
-//
-//    /**evaluating the expression of input textview and showing the result in resultTextview  with equal to symbol in the begining*/
-//    private fun evaluateResult() {
-//        Log.d(TAG, "evaluateResult() is called")
-//        val data = mFragmentBinding.inputTextview.text
-//        try {
-//            Log.d(TAG, "value in inputTextview $data")
-//            val expression = ExpressionBuilder(data.toString()).build()
-//            Log.d(TAG, "value in expression $expression")
-//            val result = expression.evaluate()
-//            mFragmentBinding.resultTextview.text = result.toString()
-//            mFragmentBinding.textviewEqual.isVisible = true
-//        } catch (e: Exception) {
-//            return
-//        }
-//    }
-//
-    /**setting text listener to the input textview of fragment*/
+
+    /**evaluate the expression of inputTextview*/
+    private fun evaluateExpression(inputData: CharSequence) {
+        Log.d(TAG, "evaluateExpression() is called")
+        val result = ExpressionBuilder(inputData.toString()).build().evaluate()
+        addDataToResultTextview(result.toString())
+        mFragmentBinding.equalTextView.isVisible = true
+    }
+
+    /**display data in result Textview*/
+    private fun addDataToResultTextview(data: String) {
+        Log.d(TAG, "addDataToResultTextview() is called")
+        mFragmentBinding.resultTextview.text = data
+    }
+
+    /**setting text watcher for the input textview of calculator ,calls evaluateResult() */
     private fun inputTextViewTextWatcher() {
         Log.d(TAG, "inputTextViewTextWatcher() is called")
-
         mFragmentBinding.inputTextview.addTextChangedListener(object : TextWatcher {
-            override fun afterTextChanged(s: Editable?) {
-                Log.d(TAG, "$s")
-            }
-
+            override fun afterTextChanged(data: Editable?) {}
             override fun beforeTextChanged(
-                s: CharSequence?,
+                data: CharSequence?,
                 start: Int,
                 count: Int,
                 after: Int
             ) {
-                Log.i(TAG, "start $start , $after , $count")
             }
 
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                Log.d(TAG, "start $start , $before , $count")
-                if (s == null)
+            override fun onTextChanged(data: CharSequence?, start: Int, before: Int, count: Int) {
+                if (data == null)
                     return
-                evaluateResult()
-                //addToInputField(s.toString())
-//                val regex = Regex("^[.\\d-]+[+*%/-]+\\d+")
-//                if (s?.contains(regex) == true) {
-//                    evaluateResult()
-//                }
+                displayResult(data)
             }
         })
     }
-//
-//    private fun addToInputView(char: String) {
-//        Log.d(TAG, "addToInputView: ")
-//
-//    }
-//
-//    /**disable operator keys when a expression contain divide by zero*/
-//    private fun disableKeys(textview: TextView) {
-//        Log.d(TAG, "disableKeys() is called")
-//        textview.isClickable = false
-//    }
-//
-//    /**enable operator keys which was disabled*/
-//    private fun enableKeys() {
-//        Log.d(TAG, "enableKeys() is called")
-//        mFragmentBinding.plus.isClickable = true
-//        mFragmentBinding.minus.isClickable = true
-//        mFragmentBinding.multiply.isClickable = true
-//        mFragmentBinding.divide.isClickable = true
-//        mFragmentBinding.modulas.isClickable = true
-//    }
-//
-//    /**making result of expression to set as new input data to evaluate*/
-//    private fun onDoubleClickEqual() {
-//        Log.d(TAG, "onDoubleClickEqual() is called")
-//        if (mFragmentBinding.resultTextview.text.isNotEmpty() && mFragmentBinding.resultTextview.text != "ERROR") {
-//            mFragmentBinding.inputTextview.text = mFragmentBinding.resultTextview.text
-//            mDigitAdded = true
-//            mFragmentBinding.resultTextview.text = ""
-//            mFragmentBinding.textviewEqual.isVisible = false
-//            return
-//        }
-//        val divideByZeroPattern = Regex("0\\d|/0[\\d.]")
-//        if (mFragmentBinding.inputTextview.text.contains(divideByZeroPattern)) {
-//            mFragmentBinding.resultTextview.text = "ERROR"
-//            disableKeys(mFragmentBinding.plus)
-//            disableKeys(mFragmentBinding.minus)
-//            disableKeys(mFragmentBinding.multiply)
-//            disableKeys(mFragmentBinding.divide)
-//            disableKeys(mFragmentBinding.modulas)
-//            return
-//        }
-//
-////        mFragmentBinding.inputTextview.text = ""
-////        mFragmentBinding.inputTextview.text = mFragmentBinding.resultTextview.text
-////        mDigitAdded = true
-////        mFragmentBinding.resultTextview.text = ""
-////        mFragmentBinding.textviewEqual.isVisible = false
-//    }
-//
-//    /**clear input data and result of the calculator also enable the disabled keys*/
-//    private fun onAllClear() {
-//        Log.d(TAG, "onAllClear() is called")
-//        mFragmentBinding.inputTextview.text = ""
-//        mFragmentBinding.resultTextview.text = ""
-//        mFragmentBinding.textviewEqual.isVisible = false
-//        mDigitAdded = false
-//        mOperatorAdded = false
-//        mDecimalValue = false
-//
-//    }
-//
-//    /**clear the last input text from the input textview of calculator also enable the already disabled keys*/
-//    private fun onClear() {
-//        Log.d(TAG, "onClear() is called")
-//        val lastChar = mFragmentBinding.inputTextview.text.toString().takeLast(1)
-//        Log.d(TAG, "value of last character $lastChar")
-//        mFragmentBinding.inputTextview.text = mFragmentBinding.inputTextview.text.dropLast(1)
-//        val secondLastChar = mFragmentBinding.inputTextview.text.toString().takeLast(1)
-//        Log.d(TAG, "second last character of textview is $secondLastChar")
-//        val operatorList = listOf("+", "-", "*", "/", "%")
-//        if (mFragmentBinding.inputTextview.text.isEmpty()) {
-//            mDigitAdded = false
-//            mOperatorAdded = false
-//            return
-//        }
-//        if (lastChar == ".") {
-//            Log.d(TAG, "last character is decimal")
-//            mDecimalValue = false
-//            mDigitAdded = false
-//            mOperatorAdded = false
-//            return
-//        }
-//        if (lastChar.isDigitsOnly() && operatorList.contains(secondLastChar)) {
-//            Log.d(TAG, "last character is a number is removed")
-//            mDigitAdded = true
-//            mOperatorAdded = true
-//            return
-//        }
-//        if (operatorList.contains(lastChar)) {
-//            Log.d(TAG, "last character is a operator is removed")
-//            mOperatorAdded = false
-//            return
-//        }
-    //   }
 
     companion object {
         private val TAG = CalculatorFragment::class.java.simpleName
+        private const val MINUS_SIGN = "-"
+        private const val DECIMAL_SIGN = "."
+        private const val DECIMAL_ZERO = "0."
+        private const val ERROR_MESSAGE = "ERROR"
+        private const val REGEX_DIVIDE_BY_ZERO = "\\d+/0+"
     }
 }
-
-
-//    private fun onclickDecimalPoint(decimal: String) {
-//        if(mDigitAdded && mDecimalValue)
-//            return
-//        if ( mDigitAdded  )
-//        {
-//            mFragmentBinding.inputTextview.append(decimal)
-//            mDecimalValue=true
-//            return
-//        }
-//        if(!mDigitAdded && !mDecimalValue || mOperatorAdded) {
-//            mFragmentBinding.inputTextview.append("0$decimal")
-//            mDecimalValue=true
-//            return
-//        }
-//
-//    }
-// private var mDecimalValue=false
-//  mDecimalValue=false
-
-
-
 
 

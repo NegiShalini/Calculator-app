@@ -39,7 +39,7 @@
                 app:layout_constraintTop_toBottomOf="@id/guideline_y" />
 
             <TextView
-                android:id="@+id/textview_equal"
+                android:id="@+id/equal_text_view"
                 android:layout_width="@dimen/dimen_0dp"
                 android:layout_height="@dimen/dimen_0dp"
                 android:text="@string/equal_to"
